@@ -58,7 +58,7 @@ harness = false
 required-features = ["std"]
 
 [features]
-default = ["std"]
+default = ["std", "profile"]
 std = [
     "digest/std",
     "merlin/std",
