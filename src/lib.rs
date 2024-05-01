@@ -21,8 +21,8 @@ mod group;
 mod math;
 mod nizk;
 mod product_tree;
-mod r1csinstance;
-mod r1csproof;
+mod r1csliteinstance;
+mod r1csliteproof;
 mod random;
 mod scalar;
 mod sparse_mlpoly;
@@ -32,12 +32,12 @@ mod transcript;
 mod unipoly;
 
 use core::cmp::max;
-use errors::{ProofVerifyError, R1CSError};
+use errors::{ProofVerifyError, R1CSLiteError};
 use merlin::Transcript;
-use r1csinstance::{
+use r1csliteinstance::{
   R1CSCommitment, R1CSCommitmentGens, R1CSDecommitment, R1CSEvalProof, R1CSInstance,
 };
-use r1csproof::{R1CSGens, R1CSProof};
+use r1csliteproof::{R1CSGens, R1CSProof};
 use random::RandomTape;
 use scalar::Scalar;
 use serde::{Deserialize, Serialize};
@@ -62,15 +62,15 @@ pub struct Assignment {
 
 impl Assignment {
   /// Constructs a new `Assignment` from a vector
-  pub fn new(assignment: &[[u8; 32]]) -> Result<Assignment, R1CSError> {
-    let bytes_to_scalar = |vec: &[[u8; 32]]| -> Result<Vec<Scalar>, R1CSError> {
+  pub fn new(assignment: &[[u8; 32]]) -> Result<Assignment, R1CSLiteError> {
+    let bytes_to_scalar = |vec: &[[u8; 32]]| -> Result<Vec<Scalar>, R1CSLiteError> {
       let mut vec_scalar: Vec<Scalar> = Vec::new();
       for v in vec {
         let val = Scalar::from_bytes(v);
         if val.is_some().unwrap_u8() == 1 {
           vec_scalar.push(val.unwrap());
         } else {
-          return Err(R1CSError::InvalidScalar);
+          return Err(R1CSLiteError::InvalidScalar);
         }
       }
       Ok(vec_scalar)
@@ -80,7 +80,7 @@ impl Assignment {
 
     // check for any parsing errors
     if assignment_scalar.is_err() {
-      return Err(R1CSError::InvalidScalar);
+      return Err(R1CSLiteError::InvalidScalar);
     }
 
     Ok(Assignment {
@@ -126,7 +126,7 @@ impl Instance {
     A: &[(usize, usize, [u8; 32])],
     B: &[(usize, usize, [u8; 32])],
     C: &[(usize, usize, [u8; 32])],
-  ) -> Result<Instance, R1CSError> {
+  ) -> Result<Instance, R1CSLiteError> {
     let (num_vars_padded, num_cons_padded) = {
       let num_vars_padded = {
         let mut num_vars_padded = num_vars;
@@ -160,17 +160,17 @@ impl Instance {
     };
 
     let bytes_to_scalar =
-      |tups: &[(usize, usize, [u8; 32])]| -> Result<Vec<(usize, usize, Scalar)>, R1CSError> {
+      |tups: &[(usize, usize, [u8; 32])]| -> Result<Vec<(usize, usize, Scalar)>, R1CSLiteError> {
         let mut mat: Vec<(usize, usize, Scalar)> = Vec::new();
         for &(row, col, val_bytes) in tups {
           // row must be smaller than num_cons
           if row >= num_cons {
-            return Err(R1CSError::InvalidIndex);
+            return Err(R1CSLiteError::InvalidIndex);
           }
 
           // col must be smaller than num_vars + 1 + num_inputs
           if col >= num_vars + 1 + num_inputs {
-            return Err(R1CSError::InvalidIndex);
+            return Err(R1CSLiteError::InvalidIndex);
           }
 
           let val = Scalar::from_bytes(&val_bytes);
@@ -183,7 +183,7 @@ impl Instance {
               mat.push((row, col, val.unwrap()));
             }
           } else {
-            return Err(R1CSError::InvalidScalar);
+            return Err(R1CSLiteError::InvalidScalar);
           }
         }
 
@@ -232,13 +232,13 @@ impl Instance {
     &self,
     vars: &VarsAssignment,
     inputs: &InputsAssignment,
-  ) -> Result<bool, R1CSError> {
+  ) -> Result<bool, R1CSLiteError> {
     if vars.assignment.len() > self.inst.get_num_vars() {
-      return Err(R1CSError::InvalidNumberOfInputs);
+      return Err(R1CSLiteError::InvalidNumberOfInputs);
     }
 
     if inputs.assignment.len() != self.inst.get_num_inputs() {
-      return Err(R1CSError::InvalidNumberOfInputs);
+      return Err(R1CSLiteError::InvalidNumberOfInputs);
     }
 
     // we might need to pad variables
@@ -641,7 +641,7 @@ mod tests {
 
     let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C);
     assert!(inst.is_err());
-    assert_eq!(inst.err(), Some(R1CSError::InvalidIndex));
+    assert_eq!(inst.err(), Some(R1CSLiteError::InvalidIndex));
   }
 
   #[test]
@@ -666,7 +666,7 @@ mod tests {
 
     let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C);
     assert!(inst.is_err());
-    assert_eq!(inst.err(), Some(R1CSError::InvalidScalar));
+    assert_eq!(inst.err(), Some(R1CSLiteError::InvalidScalar));
   }
 
   #[test]
