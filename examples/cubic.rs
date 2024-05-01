@@ -219,4 +219,5 @@ fn main() {
     .verify(&comm, &assignment_inputs, &mut verifier_transcript, &gens)
     .is_ok());
   println!("proof verification successful!");
+  println!("LESSGOOOOOOOO!");
 }
