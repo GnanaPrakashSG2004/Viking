@@ -35,9 +35,9 @@ use core::cmp::max;
 use errors::{ProofVerifyError, R1CSLiteError};
 use merlin::Transcript;
 use r1csliteinstance::{
-  R1CSCommitment, R1CSCommitmentGens, R1CSDecommitment, R1CSEvalProof, R1CSInstance,
+  R1CSLiteCommitment, R1CSLiteCommitmentGens, R1CSLiteDecommitment, R1CSLiteEvalProof, R1CSLiteInstance,
 };
-use r1csliteproof::{R1CSGens, R1CSProof};
+use r1csliteproof::{R1CSLiteGens, R1CSLiteProof};
 use random::RandomTape;
 use scalar::Scalar;
 use serde::{Deserialize, Serialize};
@@ -46,12 +46,12 @@ use transcript::{AppendToTranscript, ProofTranscript};
 
 /// `ComputationCommitment` holds a public preprocessed NP statement (e.g., R1CS)
 pub struct ComputationCommitment {
-  comm: R1CSCommitment,
+  comm: R1CSLiteCommitment,
 }
 
 /// `ComputationDecommitment` holds information to decommit `ComputationCommitment`
 pub struct ComputationDecommitment {
-  decomm: R1CSDecommitment,
+  decomm: R1CSLiteDecommitment,
 }
 
 /// `Assignment` holds an assignment of values to either the inputs or variables in an `Instance`
@@ -113,7 +113,7 @@ pub type InputsAssignment = Assignment;
 
 /// `Instance` holds the description of R1CS matrices and a hash of the matrices
 pub struct Instance {
-  inst: R1CSInstance,
+  inst: R1CSLiteInstance,
   digest: Vec<u8>,
 }
 
@@ -125,7 +125,6 @@ impl Instance {
     num_inputs: usize,
     A: &[(usize, usize, [u8; 32])],
     B: &[(usize, usize, [u8; 32])],
-    C: &[(usize, usize, [u8; 32])],
   ) -> Result<Instance, R1CSLiteError> {
     let (num_vars_padded, num_cons_padded) = {
       let num_vars_padded = {
@@ -208,18 +207,12 @@ impl Instance {
       return Err(B_scalar.err().unwrap());
     }
 
-    let C_scalar = bytes_to_scalar(C);
-    if C_scalar.is_err() {
-      return Err(C_scalar.err().unwrap());
-    }
-
-    let inst = R1CSInstance::new(
+    let inst = R1CSLiteInstance::new(
       num_cons_padded,
       num_vars_padded,
       num_inputs,
       &A_scalar.unwrap(),
       &B_scalar.unwrap(),
-      &C_scalar.unwrap(),
     );
 
     let digest = inst.get_digest();
@@ -227,7 +220,7 @@ impl Instance {
     Ok(Instance { inst, digest })
   }
 
-  /// Checks if a given R1CSInstance is satisfiable with a given variables and inputs assignments
+  /// Checks if a given R1CSLiteInstance is satisfiable with a given variables and inputs assignments
   pub fn is_sat(
     &self,
     vars: &VarsAssignment,
@@ -260,12 +253,12 @@ impl Instance {
   }
 
   /// Constructs a new synthetic R1CS `Instance` and an associated satisfying assignment
-  pub fn produce_synthetic_r1cs(
+  pub fn produce_synthetic_r1cs_lite(
     num_cons: usize,
     num_vars: usize,
     num_inputs: usize,
   ) -> (Instance, VarsAssignment, InputsAssignment) {
-    let (inst, vars, inputs) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
+    let (inst, vars, inputs) = R1CSLiteInstance::produce_synthetic_r1cs_lite(num_cons, num_vars, num_inputs);
     let digest = inst.get_digest();
     (
       Instance { inst, digest },
@@ -277,8 +270,8 @@ impl Instance {
 
 /// `SNARKGens` holds public parameters for producing and verifying proofs with the Spartan SNARK
 pub struct SNARKGens {
-  gens_r1cs_sat: R1CSGens,
-  gens_r1cs_eval: R1CSCommitmentGens,
+  gens_r1cs_lite_sat: R1CSLiteGens,
+  gens_r1cs_lite_eval: R1CSLiteCommitmentGens,
 }
 
 impl SNARKGens {
@@ -293,17 +286,17 @@ impl SNARKGens {
       num_vars_padded
     };
 
-    let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, num_vars_padded);
-    let gens_r1cs_eval = R1CSCommitmentGens::new(
-      b"gens_r1cs_eval",
+    let gens_r1cs_lite_sat = R1CSLiteGens::new(b"gens_r1cs_lite_sat", num_cons, num_vars_padded);
+    let gens_r1cs_lite_eval = R1CSLiteCommitmentGens::new(
+      b"gens_r1cs_lite_eval",
       num_cons,
       num_vars_padded,
       num_inputs,
       num_nz_entries,
     );
     SNARKGens {
-      gens_r1cs_sat,
-      gens_r1cs_eval,
+      gens_r1cs_lite_sat,
+      gens_r1cs_lite_eval,
     }
   }
 }
@@ -311,9 +304,9 @@ impl SNARKGens {
 /// `SNARK` holds a proof produced by Spartan SNARK
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SNARK {
-  r1cs_sat_proof: R1CSProof,
-  inst_evals: (Scalar, Scalar, Scalar),
-  r1cs_eval_proof: R1CSEvalProof,
+  r1cs_lite_sat_proof: R1CSLiteProof,
+  inst_evals: (Scalar, Scalar),
+  r1cs_lite_eval_proof: R1CSLiteEvalProof,
 }
 
 impl SNARK {
@@ -327,7 +320,7 @@ impl SNARK {
     gens: &SNARKGens,
   ) -> (ComputationCommitment, ComputationDecommitment) {
     let timer_encode = Timer::new("SNARK::encode");
-    let (comm, decomm) = inst.inst.commit(&gens.gens_r1cs_eval);
+    let (comm, decomm) = inst.inst.commit(&gens.gens_r1cs_lite_eval);
     timer_encode.stop();
     (
       ComputationCommitment { comm },
@@ -354,7 +347,7 @@ impl SNARK {
     transcript.append_protocol_name(SNARK::protocol_name());
     comm.comm.append_to_transcript(b"comm", transcript);
 
-    let (r1cs_sat_proof, rx, ry) = {
+    let (r1cs_lite_sat_proof, rx, ry) = {
       let (proof, rx, ry) = {
         // we might need to pad variables
         let padded_vars = {
@@ -367,11 +360,11 @@ impl SNARK {
           }
         };
 
-        R1CSProof::prove(
+        R1CSLiteProof::prove(
           &inst.inst,
           padded_vars.assignment,
           &inputs.assignment,
-          &gens.gens_r1cs_sat,
+          &gens.gens_r1cs_lite_sat,
           transcript,
           &mut random_tape,
         )
@@ -383,25 +376,24 @@ impl SNARK {
       (proof, rx, ry)
     };
 
-    // We send evaluations of A, B, C at r = (rx, ry) as claims
+    // We send evaluations of A, B at r = (rx, ry) as claims
     // to enable the verifier complete the first sum-check
     let timer_eval = Timer::new("eval_sparse_polys");
     let inst_evals = {
-      let (Ar, Br, Cr) = inst.inst.evaluate(&rx, &ry);
+      let (Ar, Br) = inst.inst.evaluate(&rx, &ry);
       Ar.append_to_transcript(b"Ar_claim", transcript);
       Br.append_to_transcript(b"Br_claim", transcript);
-      Cr.append_to_transcript(b"Cr_claim", transcript);
-      (Ar, Br, Cr)
+      (Ar, Br)
     };
     timer_eval.stop();
 
-    let r1cs_eval_proof = {
-      let proof = R1CSEvalProof::prove(
+    let r1cs_lite_eval_proof = {
+      let proof = R1CSLiteEvalProof::prove(
         &decomm.decomm,
         &rx,
         &ry,
         &inst_evals,
-        &gens.gens_r1cs_eval,
+        &gens.gens_r1cs_lite_eval,
         transcript,
         &mut random_tape,
       );
@@ -413,9 +405,9 @@ impl SNARK {
 
     timer_prove.stop();
     SNARK {
-      r1cs_sat_proof,
+      r1cs_lite_sat_proof,
       inst_evals,
-      r1cs_eval_proof,
+      r1cs_lite_eval_proof,
     }
   }
 
@@ -435,27 +427,26 @@ impl SNARK {
 
     let timer_sat_proof = Timer::new("verify_sat_proof");
     assert_eq!(input.assignment.len(), comm.comm.get_num_inputs());
-    let (rx, ry) = self.r1cs_sat_proof.verify(
+    let (rx, ry) = self.r1cs_lite_sat_proof.verify(
       comm.comm.get_num_vars(),
       comm.comm.get_num_cons(),
       &input.assignment,
       &self.inst_evals,
       transcript,
-      &gens.gens_r1cs_sat,
+      &gens.gens_r1cs_lite_sat,
     )?;
     timer_sat_proof.stop();
 
     let timer_eval_proof = Timer::new("verify_eval_proof");
-    let (Ar, Br, Cr) = &self.inst_evals;
+    let (Ar, Br) = &self.inst_evals;
     Ar.append_to_transcript(b"Ar_claim", transcript);
     Br.append_to_transcript(b"Br_claim", transcript);
-    Cr.append_to_transcript(b"Cr_claim", transcript);
-    self.r1cs_eval_proof.verify(
+    self.r1cs_lite_eval_proof.verify(
       &comm.comm,
       &rx,
       &ry,
       &self.inst_evals,
-      &gens.gens_r1cs_eval,
+      &gens.gens_r1cs_lite_eval,
       transcript,
     )?;
     timer_eval_proof.stop();
@@ -466,7 +457,7 @@ impl SNARK {
 
 /// `NIZKGens` holds public parameters for producing and verifying proofs with the Spartan NIZK
 pub struct NIZKGens {
-  gens_r1cs_sat: R1CSGens,
+  gens_r1cs_lite_sat: R1CSLiteGens,
 }
 
 impl NIZKGens {
@@ -480,15 +471,15 @@ impl NIZKGens {
       num_vars_padded
     };
 
-    let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, num_vars_padded);
-    NIZKGens { gens_r1cs_sat }
+    let gens_r1cs_lite_sat = R1CSLiteGens::new(b"gens_r1cs_lite_sat", num_cons, num_vars_padded);
+    NIZKGens { gens_r1cs_lite_sat }
   }
 }
 
 /// `NIZK` holds a proof produced by Spartan NIZK
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NIZK {
-  r1cs_sat_proof: R1CSProof,
+  r1cs_lite_sat_proof: R1CSLiteProof,
   r: (Vec<Scalar>, Vec<Scalar>),
 }
 
@@ -511,9 +502,9 @@ impl NIZK {
     let mut random_tape = RandomTape::new(b"proof");
 
     transcript.append_protocol_name(NIZK::protocol_name());
-    transcript.append_message(b"R1CSInstanceDigest", &inst.digest);
+    transcript.append_message(b"R1CSLiteInstanceDigest", &inst.digest);
 
-    let (r1cs_sat_proof, rx, ry) = {
+    let (r1cs_lite_sat_proof, rx, ry) = {
       // we might need to pad variables
       let padded_vars = {
         let num_padded_vars = inst.inst.get_num_vars();
@@ -525,11 +516,11 @@ impl NIZK {
         }
       };
 
-      let (proof, rx, ry) = R1CSProof::prove(
+      let (proof, rx, ry) = R1CSLiteProof::prove(
         &inst.inst,
         padded_vars.assignment,
         &input.assignment,
-        &gens.gens_r1cs_sat,
+        &gens.gens_r1cs_lite_sat,
         transcript,
         &mut random_tape,
       );
@@ -540,7 +531,7 @@ impl NIZK {
 
     timer_prove.stop();
     NIZK {
-      r1cs_sat_proof,
+      r1cs_lite_sat_proof,
       r: (rx, ry),
     }
   }
@@ -556,9 +547,9 @@ impl NIZK {
     let timer_verify = Timer::new("NIZK::verify");
 
     transcript.append_protocol_name(NIZK::protocol_name());
-    transcript.append_message(b"R1CSInstanceDigest", &inst.digest);
+    transcript.append_message(b"R1CSLiteInstanceDigest", &inst.digest);
 
-    // We send evaluations of A, B, C at r = (rx, ry) as claims
+    // We send evaluations of A, B at r = (rx, ry) as claims
     // to enable the verifier complete the first sum-check
     let timer_eval = Timer::new("eval_sparse_polys");
     let (claimed_rx, claimed_ry) = &self.r;
@@ -567,13 +558,13 @@ impl NIZK {
 
     let timer_sat_proof = Timer::new("verify_sat_proof");
     assert_eq!(input.assignment.len(), inst.inst.get_num_inputs());
-    let (rx, ry) = self.r1cs_sat_proof.verify(
+    let (rx, ry) = self.r1cs_lite_sat_proof.verify(
       inst.inst.get_num_vars(),
       inst.inst.get_num_cons(),
       &input.assignment,
       &inst_evals,
       transcript,
-      &gens.gens_r1cs_sat,
+      &gens.gens_r1cs_lite_sat,
     )?;
 
     // verify if claimed rx and ry are correct
@@ -599,10 +590,10 @@ mod tests {
     // produce public generators
     let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_cons);
 
-    // produce a synthetic R1CSInstance
-    let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
+    // produce a synthetic R1CSLiteInstance
+    let (inst, vars, inputs) = Instance::produce_synthetic_r1cs_lite(num_cons, num_vars, num_inputs);
 
-    // create a commitment to R1CSInstance
+    // create a commitment to R1CSLiteInstance
     let (comm, decomm) = SNARK::encode(&inst, &gens);
 
     // produce a proof
@@ -637,9 +628,8 @@ mod tests {
 
     let A = vec![(0, 0, zero)];
     let B = vec![(100, 1, zero)];
-    let C = vec![(1, 1, zero)];
 
-    let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C);
+    let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B);
     assert!(inst.is_err());
     assert_eq!(inst.err(), Some(R1CSLiteError::InvalidIndex));
   }
@@ -662,9 +652,8 @@ mod tests {
 
     let A = vec![(0, 0, zero)];
     let B = vec![(1, 1, larger_than_mod)];
-    let C = vec![(1, 1, zero)];
 
-    let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C);
+    let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B);
     assert!(inst.is_err());
     assert_eq!(inst.err(), Some(R1CSLiteError::InvalidScalar));
   }

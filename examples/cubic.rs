@@ -34,7 +34,6 @@ fn r1cs_lite() -> (
   // the coefficients in the matrix are in the little-endian byte order
   let mut A: Vec<(usize, usize, [u8; 32])> = Vec::new();
   let mut B: Vec<(usize, usize, [u8; 32])> = Vec::new();
-  let mut C: Vec<(usize, usize, [u8; 32])> = Vec::new();
 
   let one = Scalar::ONE.to_bytes();
 
@@ -45,40 +44,33 @@ fn r1cs_lite() -> (
   // Constraint 0 is x * 1 = x
   A.push((0, 0,        one));
   B.push((0, num_vars, one));
-  C.push((0, 0,        one));
 
   // Constraint 1 is x * x = a
   A.push((1, 0, one));
   B.push((1, 0, one));
-  C.push((1, 1, one));
 
   // Constraint 2 is a * a = b
   A.push((2, 1, one));
   B.push((2, 1, one));
-  C.push((2, 2, one));
 
   // Constraint 3 is b * b = c
   A.push((3, 2, one));
   B.push((3, 2, one));
-  C.push((3, 3, one));
 
   // Constraint 4 is c * c = d
   A.push((4, 3, one));
   B.push((4, 3, one));
-  C.push((4, 4, one));
 
   // Constraint 5 is 1 * 1 = 1
   A.push((5, num_vars, one));
   B.push((5, num_vars, one));
-  C.push((5, num_vars, one));
 
   // Constraint 6 is (d + 1) * 1 = y
   A.push((6, 4, one));
   A.push((6, num_vars,     one));
   B.push((6, num_vars,     one));
-  C.push((6, num_vars + 1, one));
 
-  let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
+  let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B).unwrap();
 
   // compute a satisfying assignment
   let mut csprng: OsRng = OsRng;
@@ -171,7 +163,7 @@ fn r1cs() -> (
   B.push((4, num_vars,     one));
   C.push((4, num_vars + 1, one));
 
-  let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
+  let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B).unwrap();
 
   // compute a satisfying assignment
   let mut csprng: OsRng = OsRng;

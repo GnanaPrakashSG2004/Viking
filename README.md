@@ -55,7 +55,7 @@ fn main() {
     let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_non_zero_entries);
 
     // ask the library to produce a synthentic R1CS instance
-    let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
+    let (inst, vars, inputs) = Instance::produce_synthetic_r1cs_lite(num_cons, num_vars, num_inputs);
 
     // create a commitment to the R1CS instance
     let (comm, decomm) = SNARK::encode(&inst, &gens);
@@ -90,7 +90,7 @@ fn main() {
     let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
     // ask the library to produce a synthentic R1CS instance
-    let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
+    let (inst, vars, inputs) = Instance::produce_synthetic_r1cs_lite(num_cons, num_vars, num_inputs);
 
     // produce a proof of satisfiability
     let mut prover_transcript = Transcript::new(b"nizk_example");
@@ -350,7 +350,7 @@ Profiler:: SNARK
   * SNARK::encode
   * SNARK::encode 14.2644201s
   * SNARK::prove
-    * R1CSProof::prove
+    * R1CSLiteProof::prove
       * polycommit
       * polycommit 2.7175848s
       * prove_sc_phase_one
@@ -359,11 +359,11 @@ Profiler:: SNARK
       * prove_sc_phase_two 846.1056ms
       * polyeval
       * polyeval 193.4216ms
-    * R1CSProof::prove 4.4416193s
+    * R1CSLiteProof::prove 4.4416193s
     * len_r1cs_sat_proof 47024
     * eval_sparse_polys
     * eval_sparse_polys 377.357ms
-    * R1CSEvalProof::prove
+    * R1CSLiteEvalProof::prove
       * commit_nondet_witness
       * commit_nondet_witness 14.4507331s
       * build_layered_network
@@ -371,7 +371,7 @@ Profiler:: SNARK
       * evalproof_layered_network
         * len_product_layer_proof 64712
       * evalproof_layered_network 15.5708066s
-    * R1CSEvalProof::prove 34.2930559s
+    * R1CSLiteEvalProof::prove 34.2930559s
     * len_r1cs_eval_proof 133720
   * SNARK::prove 39.1297568s
   * SNARK::proof_compressed_len 141768
@@ -399,7 +399,7 @@ Profiler:: NIZK
   * number_non-zero_entries_B 1048576
   * number_non-zero_entries_C 1048576
   * NIZK::prove
-    * R1CSProof::prove
+    * R1CSLiteProof::prove
       * polycommit
       * polycommit 2.7220635s
       * prove_sc_phase_one
@@ -408,7 +408,7 @@ Profiler:: NIZK
       * prove_sc_phase_two 862.6796ms
       * polyeval
       * polyeval 190.2233ms
-    * R1CSProof::prove 4.4982305s
+    * R1CSLiteProof::prove 4.4982305s
     * len_r1cs_sat_proof 47024
   * NIZK::prove 4.5139888s
   * NIZK::proof_compressed_len 48134

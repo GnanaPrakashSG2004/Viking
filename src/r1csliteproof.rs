@@ -7,7 +7,7 @@ use super::errors::ProofVerifyError;
 use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
 use super::math::Math;
 use super::nizk::{EqualityProof, KnowledgeProof, ProductProof};
-use super::r1csliteinstance::R1CSInstance;
+use super::r1csliteinstance::R1CSLiteInstance;
 use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
@@ -19,7 +19,7 @@ use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct R1CSProof {
+pub struct R1CSLiteProof {
   comm_vars: PolyCommitment,
   sc_proof_phase1: ZKSumcheckInstanceProof,
   claims_phase2: (
@@ -36,20 +36,20 @@ pub struct R1CSProof {
   proof_eq_sc_phase2: EqualityProof,
 }
 
-pub struct R1CSSumcheckGens {
+pub struct R1CSLiteSumcheckGens {
   gens_1: MultiCommitGens,
   gens_3: MultiCommitGens,
   gens_4: MultiCommitGens,
 }
 
 // TODO: fix passing gens_1_ref
-impl R1CSSumcheckGens {
+impl R1CSLiteSumcheckGens {
   pub fn new(label: &'static [u8], gens_1_ref: &MultiCommitGens) -> Self {
     let gens_1 = gens_1_ref.clone();
     let gens_3 = MultiCommitGens::new(3, label);
     let gens_4 = MultiCommitGens::new(4, label);
 
-    R1CSSumcheckGens {
+    R1CSLiteSumcheckGens {
       gens_1,
       gens_3,
       gens_4,
@@ -57,28 +57,28 @@ impl R1CSSumcheckGens {
   }
 }
 
-pub struct R1CSGens {
-  gens_sc: R1CSSumcheckGens,
+pub struct R1CSLiteGens {
+  gens_sc: R1CSLiteSumcheckGens,
   gens_pc: PolyCommitmentGens,
 }
 
-impl R1CSGens {
+impl R1CSLiteGens {
   pub fn new(label: &'static [u8], _num_cons: usize, num_vars: usize) -> Self {
     let num_poly_vars = num_vars.log_2();
     let gens_pc = PolyCommitmentGens::new(num_poly_vars, label);
-    let gens_sc = R1CSSumcheckGens::new(label, &gens_pc.gens.gens_1);
-    R1CSGens { gens_sc, gens_pc }
+    let gens_sc = R1CSLiteSumcheckGens::new(label, &gens_pc.gens.gens_1);
+    R1CSLiteGens { gens_sc, gens_pc }
   }
 }
 
-impl R1CSProof {
+impl R1CSLiteProof {
   fn prove_phase_one(
     num_rounds: usize,
     evals_tau: &mut DensePolynomial,
     evals_Az: &mut DensePolynomial,
     evals_Bz: &mut DensePolynomial,
     evals_Cz: &mut DensePolynomial,
-    gens: &R1CSSumcheckGens,
+    gens: &R1CSLiteSumcheckGens,
     transcript: &mut Transcript,
     random_tape: &mut RandomTape,
   ) -> (ZKSumcheckInstanceProof, Vec<Scalar>, Vec<Scalar>, Scalar) {
@@ -113,7 +113,7 @@ impl R1CSProof {
     blind_claim: &Scalar,
     evals_z: &mut DensePolynomial,
     evals_ABC: &mut DensePolynomial,
-    gens: &R1CSSumcheckGens,
+    gens: &R1CSLiteSumcheckGens,
     transcript: &mut Transcript,
     random_tape: &mut RandomTape,
   ) -> (ZKSumcheckInstanceProof, Vec<Scalar>, Vec<Scalar>, Scalar) {
@@ -136,19 +136,19 @@ impl R1CSProof {
   }
 
   fn protocol_name() -> &'static [u8] {
-    b"R1CS proof"
+    b"R1CSLite proof"
   }
 
   pub fn prove(
-    inst: &R1CSInstance,
+    inst: &R1CSLiteInstance,
     vars: Vec<Scalar>,
     input: &[Scalar],
-    gens: &R1CSGens,
+    gens: &R1CSLiteGens,
     transcript: &mut Transcript,
     random_tape: &mut RandomTape,
-  ) -> (R1CSProof, Vec<Scalar>, Vec<Scalar>) {
-    let timer_prove = Timer::new("R1CSProof::prove");
-    transcript.append_protocol_name(R1CSProof::protocol_name());
+  ) -> (R1CSLiteProof, Vec<Scalar>, Vec<Scalar>) {
+    let timer_prove = Timer::new("R1CSLiteProof::prove");
+    transcript.append_protocol_name(R1CSLiteProof::protocol_name());
 
     // we currently require the number of |inputs| + 1 to be at most number of vars
     assert!(input.len() < vars.len());
@@ -190,7 +190,7 @@ impl R1CSProof {
     let (mut poly_Az, mut poly_Bz, mut poly_Cz) =
       inst.multiply_vec(inst.get_num_cons(), z.len(), &z);
 
-    let (sc_proof_phase1, rx, _claims_phase1, blind_claim_postsc1) = R1CSProof::prove_phase_one(
+    let (sc_proof_phase1, rx, _claims_phase1, blind_claim_postsc1) = R1CSLiteProof::prove_phase_one(
       num_rounds_x,
       &mut poly_tau,
       &mut poly_Az,
@@ -281,7 +281,7 @@ impl R1CSProof {
     };
 
     // another instance of the sum-check protocol
-    let (sc_proof_phase2, ry, claims_phase2, blind_claim_postsc2) = R1CSProof::prove_phase_two(
+    let (sc_proof_phase2, ry, claims_phase2, blind_claim_postsc2) = R1CSLiteProof::prove_phase_two(
       num_rounds_y,
       &claim_phase2,
       &blind_claim_phase2,
@@ -325,7 +325,7 @@ impl R1CSProof {
     timer_prove.stop();
 
     (
-      R1CSProof {
+      R1CSLiteProof {
         comm_vars,
         sc_proof_phase1,
         claims_phase2: (
@@ -353,9 +353,9 @@ impl R1CSProof {
     input: &[Scalar],
     evals: &(Scalar, Scalar, Scalar),
     transcript: &mut Transcript,
-    gens: &R1CSGens,
+    gens: &R1CSLiteGens,
   ) -> Result<(Vec<Scalar>, Vec<Scalar>), ProofVerifyError> {
-    transcript.append_protocol_name(R1CSProof::protocol_name());
+    transcript.append_protocol_name(R1CSLiteProof::protocol_name());
 
     input.append_to_transcript(b"input", transcript);
 
@@ -493,7 +493,9 @@ mod tests {
   use super::*;
   use rand::rngs::OsRng;
 
-  fn produce_tiny_r1cs() -> (R1CSInstance, Vec<Scalar>, Vec<Scalar>) {
+  fn produce_tiny_r1cs_lite() -> (R1CSLiteInstance, Vec<Scalar>, Vec<Scalar>) {
+    // ! TODO: Construct the right example later 
+
     // three constraints over five variables Z1, Z2, Z3, Z4, and Z5
     // rounded to the nearest power of two
     let num_cons = 128;
@@ -511,20 +513,18 @@ mod tests {
     A.push((0, 0, one));
     A.push((0, 1, one));
     B.push((0, num_vars + 1, one));
-    C.push((0, 2, one));
 
     // constraint 1 entries
     // (Z1 + I1) * (Z3) - Z4 = 0
     A.push((1, 0, one));
     A.push((1, num_vars + 2, one));
     B.push((1, 2, one));
-    C.push((1, 3, one));
     // constraint 3 entries
     // Z5 * 1 - 0 = 0
     A.push((2, 4, one));
     B.push((2, num_vars, one));
 
-    let inst = R1CSInstance::new(num_cons, num_vars, num_inputs, &A, &B, &C);
+    let inst = R1CSLiteInstance::new(num_cons, num_vars, num_inputs, &A, &B);
 
     // compute a satisfying assignment
     let mut csprng: OsRng = OsRng;
@@ -551,31 +551,31 @@ mod tests {
   }
 
   #[test]
-  fn test_tiny_r1cs() {
-    let (inst, vars, input) = tests::produce_tiny_r1cs();
+  fn test_tiny_r1cs_lite() {
+    let (inst, vars, input) = tests::produce_tiny_r1cs_lite();
     let is_sat = inst.is_sat(&vars, &input);
     assert!(is_sat);
   }
 
   #[test]
-  fn test_synthetic_r1cs() {
-    let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(1024, 1024, 10);
+  fn test_synthetic_r1cs_lite() {
+    let (inst, vars, input) = R1CSLiteInstance::produce_synthetic_r1cs_lite(1024, 1024, 10);
     let is_sat = inst.is_sat(&vars, &input);
     assert!(is_sat);
   }
 
   #[test]
-  pub fn check_r1cs_proof() {
+  pub fn check_r1cs_lite_proof() {
     let num_vars = 1024;
     let num_cons = num_vars;
     let num_inputs = 10;
-    let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
+    let (inst, vars, input) = R1CSLiteInstance::produce_synthetic_r1cs_lite(num_cons, num_vars, num_inputs);
 
-    let gens = R1CSGens::new(b"test-m", num_cons, num_vars);
+    let gens = R1CSLiteGens::new(b"test-m", num_cons, num_vars);
 
     let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
-    let (proof, rx, ry) = R1CSProof::prove(
+    let (proof, rx, ry) = R1CSLiteProof::prove(
       &inst,
       vars,
       &input,
