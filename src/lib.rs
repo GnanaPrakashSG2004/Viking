@@ -616,7 +616,7 @@ mod tests {
   }
 
   #[test]
-  pub fn check_r1cs_invalid_index() {
+  pub fn check_r1cs_lite_invalid_index() {
     let num_cons = 4;
     let num_vars = 8;
     let num_inputs = 1;
@@ -635,7 +635,7 @@ mod tests {
   }
 
   #[test]
-  pub fn check_r1cs_invalid_scalar() {
+  pub fn check_r1cs_lite_invalid_scalar() {
     let num_cons = 4;
     let num_vars = 8;
     let num_inputs = 1;
@@ -692,7 +692,7 @@ mod tests {
     let assignment_vars = VarsAssignment::new(&vars).unwrap();
 
     // Check if instance is satisfiable
-    let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
+    let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B).unwrap();
     let res = inst.is_sat(&assignment_vars, &assignment_inputs);
     assert!(res.unwrap(), "should be satisfied");
 

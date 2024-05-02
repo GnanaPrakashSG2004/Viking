@@ -146,6 +146,7 @@ impl R1CSLiteInstance {
     encoder.finish().unwrap()
   }
 
+  // ! TODO: Create a synthetic R1CSLite instance
   pub fn produce_synthetic_r1cs_lite(
     num_cons: usize,
     num_vars: usize,

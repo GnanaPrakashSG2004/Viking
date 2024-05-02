@@ -505,7 +505,6 @@ mod tests {
     // encode the above constraints into three matrices
     let mut A: Vec<(usize, usize, Scalar)> = Vec::new();
     let mut B: Vec<(usize, usize, Scalar)> = Vec::new();
-    let mut C: Vec<(usize, usize, Scalar)> = Vec::new();
 
     let one = Scalar::one();
     // constraint 0 entries
