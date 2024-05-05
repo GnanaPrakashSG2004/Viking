@@ -442,10 +442,17 @@ impl SparseMatPolynomial {
     let eval_table_rx = EqPolynomial::new(rx.to_vec()).evals();
     let eval_table_ry = EqPolynomial::new(ry.to_vec()).evals();
 
-    polys
+    let evals_A_B = polys
       .iter()
       .map(|poly| poly.evaluate_with_tables(&eval_table_rx, &eval_table_ry))
-      .collect::<Vec<Scalar>>()
+      .collect::<Vec<Scalar>>();
+
+    let evals_z = if rx == ry { Scalar::one() } else { Scalar::zero() };
+
+    // Return chained evaluations
+    let mut evals = evals_A_B;
+    evals.push(evals_z);
+    evals
   }
 
   pub fn multiply_vec(&self, num_rows: usize, num_cols: usize, z: &[Scalar]) -> Vec<Scalar> {

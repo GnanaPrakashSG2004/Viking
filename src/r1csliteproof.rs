@@ -77,7 +77,7 @@ impl R1CSLiteProof {
     evals_tau: &mut DensePolynomial,
     evals_Az: &mut DensePolynomial,
     evals_Bz: &mut DensePolynomial,
-    evals_Cz: &mut DensePolynomial,
+    evals_z: &mut DensePolynomial,
     gens: &R1CSLiteSumcheckGens,
     transcript: &mut Transcript,
     random_tape: &mut RandomTape,
@@ -96,7 +96,7 @@ impl R1CSLiteProof {
         evals_tau,
         evals_Az,
         evals_Bz,
-        evals_Cz,
+        evals_z,
         comb_func,
         &gens.gens_1,
         &gens.gens_4,
@@ -112,7 +112,7 @@ impl R1CSLiteProof {
     claim: &Scalar,
     blind_claim: &Scalar,
     evals_z: &mut DensePolynomial,
-    evals_ABC: &mut DensePolynomial,
+    evals_ABz: &mut DensePolynomial,
     gens: &R1CSLiteSumcheckGens,
     transcript: &mut Transcript,
     random_tape: &mut RandomTape,
@@ -124,7 +124,7 @@ impl R1CSLiteProof {
       blind_claim,
       num_rounds,
       evals_z,
-      evals_ABC,
+      evals_ABz,
       comb_func,
       &gens.gens_1,
       &gens.gens_3,
@@ -187,7 +187,7 @@ impl R1CSLiteProof {
     let tau = transcript.challenge_vector(b"challenge_tau", num_rounds_x);
     // compute the initial evaluation table for R(\tau, x)
     let mut poly_tau = DensePolynomial::new(EqPolynomial::new(tau).evals());
-    let (mut poly_Az, mut poly_Bz, mut poly_Cz) =
+    let (mut poly_Az, mut poly_Bz, mut poly_z) =
       inst.multiply_vec(inst.get_num_cons(), z.len(), &z);
 
     let (sc_proof_phase1, rx, _claims_phase1, blind_claim_postsc1) = R1CSLiteProof::prove_phase_one(
@@ -195,7 +195,7 @@ impl R1CSLiteProof {
       &mut poly_tau,
       &mut poly_Az,
       &mut poly_Bz,
-      &mut poly_Cz,
+      &mut poly_z,
       &gens.gens_sc,
       transcript,
       random_tape,
@@ -203,25 +203,25 @@ impl R1CSLiteProof {
     assert_eq!(poly_tau.len(), 1);
     assert_eq!(poly_Az.len(), 1);
     assert_eq!(poly_Bz.len(), 1);
-    assert_eq!(poly_Cz.len(), 1);
+    assert_eq!(poly_z.len(), 1);
     timer_sc_proof_phase1.stop();
 
-    let (tau_claim, Az_claim, Bz_claim, Cz_claim) =
-      (&poly_tau[0], &poly_Az[0], &poly_Bz[0], &poly_Cz[0]);
-    let (Az_blind, Bz_blind, Cz_blind, prod_Az_Bz_blind) = (
+    let (tau_claim, Az_claim, Bz_claim, z_claim) =
+      (&poly_tau[0], &poly_Az[0], &poly_Bz[0], &poly_z[0]);
+    let (Az_blind, Bz_blind, z_blind, prod_Az_Bz_blind) = (
       random_tape.random_scalar(b"Az_blind"),
       random_tape.random_scalar(b"Bz_blind"),
-      random_tape.random_scalar(b"Cz_blind"),
+      random_tape.random_scalar(b"z_blind"),
       random_tape.random_scalar(b"prod_Az_Bz_blind"),
     );
 
-    let (pok_Cz_claim, comm_Cz_claim) = {
+    let (pok_z_claim, comm_z_claim) = {
       KnowledgeProof::prove(
         &gens.gens_sc.gens_1,
         transcript,
         random_tape,
-        Cz_claim,
-        &Cz_blind,
+        z_claim,
+        &z_blind,
       )
     };
 
@@ -242,13 +242,13 @@ impl R1CSLiteProof {
 
     comm_Az_claim.append_to_transcript(b"comm_Az_claim", transcript);
     comm_Bz_claim.append_to_transcript(b"comm_Bz_claim", transcript);
-    comm_Cz_claim.append_to_transcript(b"comm_Cz_claim", transcript);
+    comm_z_claim.append_to_transcript(b"comm_z_claim", transcript);
     comm_prod_Az_Bz_claims.append_to_transcript(b"comm_prod_Az_Bz_claims", transcript);
 
     // prove the final step of sum-check #1
     let taus_bound_rx = tau_claim;
-    let blind_expected_claim_postsc1 = taus_bound_rx * (prod_Az_Bz_blind - Cz_blind);
-    let claim_post_phase1 = (Az_claim * Bz_claim - Cz_claim) * taus_bound_rx;
+    let blind_expected_claim_postsc1 = taus_bound_rx * (prod_Az_Bz_blind - z_blind);
+    let claim_post_phase1 = (Az_claim * Bz_claim - z_claim) * taus_bound_rx;
     let (proof_eq_sc_phase1, _C1, _C2) = EqualityProof::prove(
       &gens.gens_sc.gens_1,
       transcript,
@@ -263,21 +263,25 @@ impl R1CSLiteProof {
     // combine the three claims into a single claim
     let r_A = transcript.challenge_scalar(b"challenege_Az");
     let r_B = transcript.challenge_scalar(b"challenege_Bz");
-    let r_C = transcript.challenge_scalar(b"challenege_Cz");
-    let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
-    let blind_claim_phase2 = r_A * Az_blind + r_B * Bz_blind + r_C * Cz_blind;
+    let r_z = transcript.challenge_scalar(b"challenege_z");
+    let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_z * z_claim;
+    let blind_claim_phase2 = r_A * Az_blind + r_B * Bz_blind + r_z * z_blind;
 
-    let evals_ABC = {
+    let evals_ABz = {
       // compute the initial evaluation table for R(\tau, x)
       let evals_rx = EqPolynomial::new(rx.clone()).evals();
-      let (evals_A, evals_B, evals_C) =
+      let (evals_A, evals_B) =
         inst.compute_eval_table_sparse(inst.get_num_cons(), z.len(), &evals_rx);
 
       assert_eq!(evals_A.len(), evals_B.len());
-      assert_eq!(evals_A.len(), evals_C.len());
+      
       (0..evals_A.len())
-        .map(|i| r_A * evals_A[i] + r_B * evals_B[i] + r_C * evals_C[i])
-        .collect::<Vec<Scalar>>()
+      .map(|i| {
+        let i_scalar = Scalar::from(i as u64);
+        let r_z_i = if r_z == i_scalar { r_z } else { Scalar::zero() };
+        r_A * evals_A[i] + r_B * evals_B[i] + r_z_i
+      })
+      .collect::<Vec<Scalar>>()
     };
 
     // another instance of the sum-check protocol
@@ -286,10 +290,10 @@ impl R1CSLiteProof {
       &claim_phase2,
       &blind_claim_phase2,
       &mut DensePolynomial::new(z),
-      &mut DensePolynomial::new(evals_ABC),
+      &mut DensePolynomial::new(evals_ABz),
       &gens.gens_sc,
       transcript,
-      random_tape,
+      random_tape,  
     );
     timer_sc_proof_phase2.stop();
 
@@ -331,10 +335,10 @@ impl R1CSLiteProof {
         claims_phase2: (
           comm_Az_claim,
           comm_Bz_claim,
-          comm_Cz_claim,
+          comm_z_claim,
           comm_prod_Az_Bz_claims,
         ),
-        pok_claims_phase2: (pok_Cz_claim, proof_prod),
+        pok_claims_phase2: (pok_z_claim, proof_prod),
         proof_eq_sc_phase1,
         sc_proof_phase2,
         comm_vars_at_ry,
@@ -473,9 +477,9 @@ impl R1CSLiteProof {
     );
 
     // perform the final check in the second sum-check protocol
-    let (eval_A_r, eval_B_r, eval_C_r) = evals;
+    let (eval_A_r, eval_B_r, eval_z_r ) = evals;
     let expected_claim_post_phase2 =
-      ((r_A * eval_A_r + r_B * eval_B_r + r_C * eval_C_r) * comm_eval_Z_at_ry).compress();
+      ((r_A * eval_A_r + r_B * eval_B_r + r_C * eval_z_r) * comm_eval_Z_at_ry).compress();
     // verify proof that expected_claim_post_phase1 == claim_post_phase1
     self.proof_eq_sc_phase2.verify(
       &gens.gens_sc.gens_1,
@@ -584,6 +588,7 @@ mod tests {
     );
 
     let inst_evals = inst.evaluate(&rx, &ry);
+
 
     let mut verifier_transcript = Transcript::new(b"example");
     assert!(proof

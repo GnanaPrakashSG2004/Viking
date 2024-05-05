@@ -305,7 +305,7 @@ impl SNARKGens {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SNARK {
   r1cs_lite_sat_proof: R1CSLiteProof,
-  inst_evals: (Scalar, Scalar),
+  inst_evals: (Scalar, Scalar, Scalar),
   r1cs_lite_eval_proof: R1CSLiteEvalProof,
 }
 
@@ -380,10 +380,11 @@ impl SNARK {
     // to enable the verifier complete the first sum-check
     let timer_eval = Timer::new("eval_sparse_polys");
     let inst_evals = {
-      let (Ar, Br) = inst.inst.evaluate(&rx, &ry);
+      let (Ar, Br, zr) = inst.inst.evaluate(&rx, &ry);
       Ar.append_to_transcript(b"Ar_claim", transcript);
       Br.append_to_transcript(b"Br_claim", transcript);
-      (Ar, Br)
+      zr.append_to_transcript(b"zr_claim", transcript);
+      (Ar, Br, zr)
     };
     timer_eval.stop();
 
@@ -438,9 +439,10 @@ impl SNARK {
     timer_sat_proof.stop();
 
     let timer_eval_proof = Timer::new("verify_eval_proof");
-    let (Ar, Br) = &self.inst_evals;
+    let (Ar, Br, zr) = &self.inst_evals;
     Ar.append_to_transcript(b"Ar_claim", transcript);
     Br.append_to_transcript(b"Br_claim", transcript);
+    zr.append_to_transcript(b"zr_claim", transcript);
     self.r1cs_lite_eval_proof.verify(
       &comm.comm,
       &rx,

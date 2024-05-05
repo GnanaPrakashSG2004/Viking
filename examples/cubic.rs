@@ -73,8 +73,9 @@ fn r1cs_lite() -> (
   let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B).unwrap();
 
   // compute a satisfying assignment
-  let mut csprng: OsRng = OsRng;
-  let z0 = Scalar::random(&mut csprng);
+  // let mut csprng: OsRng = OsRng;
+  // let z0 = Scalar::random(&mut csprng);
+  let z0 = Scalar::from(2u64);
   let z1 = z0 * z0;          // constraint 2
   let z2 = z1 * z1;          // constraint 3
   let z3 = z2 * z2;          // constraint 4

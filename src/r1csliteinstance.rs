@@ -228,6 +228,10 @@ impl R1CSLiteInstance {
       .B
       .multiply_vec(self.num_cons, self.num_vars + self.num_inputs + 1, &z);
 
+    println!("Az: {:?}", Az);
+    println!("Bz: {:?}", Bz);
+    println!("z: {:?}", z);
+
     assert_eq!(Az.len(), self.num_cons);
     assert_eq!(Bz.len(), self.num_cons);
     (0..self.num_cons).all(|i| Az[i] * Bz[i] == z[i])
@@ -238,13 +242,17 @@ impl R1CSLiteInstance {
     num_rows: usize,
     num_cols: usize,
     z: &[Scalar],
-  ) -> (DensePolynomial, DensePolynomial) {
+  ) -> (DensePolynomial, DensePolynomial, DensePolynomial) {
     assert_eq!(num_rows, self.num_cons);
     assert_eq!(z.len(), num_cols);
     assert!(num_cols > self.num_vars);
+
+    let z_new = z.iter().cloned().collect();
+
     (
       DensePolynomial::new(self.A.multiply_vec(num_rows, num_cols, z)),
       DensePolynomial::new(self.B.multiply_vec(num_rows, num_cols, z)),
+      DensePolynomial::new(z_new)
     )
   }
 
@@ -263,9 +271,9 @@ impl R1CSLiteInstance {
     (evals_A, evals_B)
   }
 
-  pub fn evaluate(&self, rx: &[Scalar], ry: &[Scalar]) -> (Scalar, Scalar) {
+  pub fn evaluate(&self, rx: &[Scalar], ry: &[Scalar]) -> (Scalar, Scalar, Scalar) {
     let evals = SparseMatPolynomial::multi_evaluate(&[&self.A, &self.B], rx, ry);
-    (evals[0], evals[1])
+    (evals[0], evals[1], evals[2])
   }
 
   pub fn commit(&self, gens: &R1CSLiteCommitmentGens) -> (R1CSLiteCommitment, R1CSLiteDecommitment) {
@@ -293,7 +301,7 @@ impl R1CSLiteEvalProof {
     decomm: &R1CSLiteDecommitment,
     rx: &[Scalar], // point at which the polynomial is evaluated
     ry: &[Scalar],
-    evals: &(Scalar, Scalar),
+    evals: &(Scalar, Scalar, Scalar),
     gens: &R1CSLiteCommitmentGens,
     transcript: &mut Transcript,
     random_tape: &mut RandomTape,
@@ -318,7 +326,7 @@ impl R1CSLiteEvalProof {
     comm: &R1CSLiteCommitment,
     rx: &[Scalar], // point at which the R1CS matrix polynomials are evaluated
     ry: &[Scalar],
-    evals: &(Scalar, Scalar),
+    evals: &(Scalar, Scalar, Scalar),
     gens: &R1CSLiteCommitmentGens,
     transcript: &mut Transcript,
   ) -> Result<(), ProofVerifyError> {
@@ -326,7 +334,7 @@ impl R1CSLiteEvalProof {
       &comm.comm,
       rx,
       ry,
-      &[evals.0, evals.1],
+      &[evals.0, evals.1, evals.2],
       &gens.gens,
       transcript,
     )
