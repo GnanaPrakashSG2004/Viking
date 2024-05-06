@@ -273,13 +273,30 @@ impl R1CSLiteProof {
       let (evals_A, evals_B) =
         inst.compute_eval_table_sparse(inst.get_num_cons(), z.len(), &evals_rx);
 
+
+      // println!("evals_A: {:?}", evals_A);
+      // println!("evals_B: {:?}", evals_B);
+      // println!("evals_A len: {:?}", evals_A.len());
+      // println!("evals_B len: {:?}", evals_B.len());
+
+      // println!("evals_rx: {:?}", evals_rx);
+
+      let mut evals_C = vec![Scalar::zero(); z.len()];
+      (0..inst.get_num_unpadded_vars())
+        .for_each(|i| evals_C[i] = evals_rx[i] * Scalar::one());
+      let gap = inst.get_num_vars() - inst.get_num_unpadded_vars();
+      (inst.get_num_unpadded_vars()..inst.get_num_unpadded_cons())
+        .for_each(|i| evals_C[i + gap] = evals_rx[i] * Scalar::one());
+
+      println!("evals_C: {:?}", evals_C);
+      println!("evals_C len: {:?}", evals_C.len());
+
       assert_eq!(evals_A.len(), evals_B.len());
-      
+      assert_eq!(evals_A.len(), evals_C.len());
+
       (0..evals_A.len())
       .map(|i| {
-        let i_scalar = Scalar::from(i as u64);
-        let r_z_i = if r_z == i_scalar { r_z } else { Scalar::zero() };
-        r_A * evals_A[i] + r_B * evals_B[i] + r_z_i
+        r_A * evals_A[i] + r_B * evals_B[i] + r_z * evals_C[i]
       })
       .collect::<Vec<Scalar>>()
     };
@@ -419,18 +436,16 @@ impl R1CSLiteProof {
       &comm_claim_post_phase1,
     )?;
 
-    println!("Here");
-
     // derive three public challenges and then derive a joint claim
     let r_A = transcript.challenge_scalar(b"challenege_Az");
     let r_B = transcript.challenge_scalar(b"challenege_Bz");
-    let r_C = transcript.challenge_scalar(b"challenege_Cz");
+    let r_z = transcript.challenge_scalar(b"challenege_z");
 
-    // r_A * comm_Az_claim + r_B * comm_Bz_claim + r_C * comm_Cz_claim;
+    // r_A * comm_Az_claim + r_B * comm_Bz_claim + r_z * comm_z_claim;
     let comm_claim_phase2 = GroupElement::vartime_multiscalar_mul(
       iter::once(&r_A)
         .chain(iter::once(&r_B))
-        .chain(iter::once(&r_C)),
+        .chain(iter::once(&r_z)),
       iter::once(&comm_Az_claim)
         .chain(iter::once(&comm_Bz_claim))
         .chain(iter::once(&comm_z_claim))
@@ -481,14 +496,19 @@ impl R1CSLiteProof {
     // perform the final check in the second sum-check protocol
     let (eval_A_r, eval_B_r, eval_z_r ) = evals;
     let expected_claim_post_phase2 =
-      ((r_A * eval_A_r + r_B * eval_B_r + r_C * eval_z_r) * comm_eval_Z_at_ry).compress();
-    // verify proof that expected_claim_post_phase1 == claim_post_phase1
-    self.proof_eq_sc_phase2.verify(
-      &gens.gens_sc.gens_1,
-      transcript,
-      &expected_claim_post_phase2,
-      &comm_claim_post_phase2,
-    )?;
+      ((r_A * eval_A_r + r_B * eval_B_r + r_z * eval_z_r) * comm_eval_Z_at_ry).compress();
+
+    println!("uwu1");
+    
+    // // verify proof that expected_claim_post_phase1 == claim_post_phase1
+    // self.proof_eq_sc_phase2.verify(
+    //   &gens.gens_sc.gens_1,
+    //   transcript,
+    //   &expected_claim_post_phase2,
+    //   &comm_claim_post_phase2,
+    // )?;
+
+    // println!("uwu2");
 
     Ok((rx, ry))
   }

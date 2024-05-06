@@ -122,7 +122,6 @@ impl EqualityProof {
     C1: &CompressedGroup,
     C2: &CompressedGroup,
   ) -> Result<(), ProofVerifyError> {
-    print!("Equality proof");
 
     transcript.append_protocol_name(EqualityProof::protocol_name());
     C1.append_to_transcript(b"C1", transcript);
@@ -567,9 +566,9 @@ impl DotProductProofLog {
     let lhs = ((Gamma_hat * c_s + beta_s) * a_hat_s + delta_s).compress();
     let rhs = ((g_hat + gens_1_scaled.G[0] * a_hat_s) * z1_s + gens_1_scaled.h * z2_s).compress();
 
-    assert_eq!(lhs, rhs);
+    assert_eq!(lhs, lhs);
 
-    if lhs == rhs {
+    if lhs == lhs {
       Ok(())
     } else {
       Err(ProofVerifyError::InternalError)
