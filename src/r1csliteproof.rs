@@ -386,11 +386,11 @@ impl R1CSLiteProof {
       &gens.gens_sc.gens_4,
       transcript,
     )?;
-    // perform the intermediate sum-check test with claimed Az, Bz, and Cz
-    let (comm_Az_claim, comm_Bz_claim, comm_Cz_claim, comm_prod_Az_Bz_claims) = &self.claims_phase2;
-    let (pok_Cz_claim, proof_prod) = &self.pok_claims_phase2;
+    // perform the intermediate sum-check test with claimed Az, Bz, and z
+    let (comm_Az_claim, comm_Bz_claim, comm_z_claim, comm_prod_Az_Bz_claims) = &self.claims_phase2;
+    let (pok_z_claim, proof_prod) = &self.pok_claims_phase2;
 
-    pok_Cz_claim.verify(&gens.gens_sc.gens_1, transcript, comm_Cz_claim)?;
+    pok_z_claim.verify(&gens.gens_sc.gens_1, transcript, comm_z_claim)?;
     proof_prod.verify(
       &gens.gens_sc.gens_1,
       transcript,
@@ -401,14 +401,14 @@ impl R1CSLiteProof {
 
     comm_Az_claim.append_to_transcript(b"comm_Az_claim", transcript);
     comm_Bz_claim.append_to_transcript(b"comm_Bz_claim", transcript);
-    comm_Cz_claim.append_to_transcript(b"comm_Cz_claim", transcript);
+    comm_z_claim.append_to_transcript(b"comm_z_claim", transcript);
     comm_prod_Az_Bz_claims.append_to_transcript(b"comm_prod_Az_Bz_claims", transcript);
 
     let taus_bound_rx: Scalar = (0..rx.len())
       .map(|i| rx[i] * tau[i] + (Scalar::one() - rx[i]) * (Scalar::one() - tau[i]))
       .product();
     let expected_claim_post_phase1 = (taus_bound_rx
-      * (comm_prod_Az_Bz_claims.decompress().unwrap() - comm_Cz_claim.decompress().unwrap()))
+      * (comm_prod_Az_Bz_claims.decompress().unwrap() - comm_z_claim.decompress().unwrap()))
     .compress();
 
     // verify proof that expected_claim_post_phase1 == claim_post_phase1
@@ -418,6 +418,8 @@ impl R1CSLiteProof {
       &expected_claim_post_phase1,
       &comm_claim_post_phase1,
     )?;
+
+    println!("Here");
 
     // derive three public challenges and then derive a joint claim
     let r_A = transcript.challenge_scalar(b"challenege_Az");
@@ -431,7 +433,7 @@ impl R1CSLiteProof {
         .chain(iter::once(&r_C)),
       iter::once(&comm_Az_claim)
         .chain(iter::once(&comm_Bz_claim))
-        .chain(iter::once(&comm_Cz_claim))
+        .chain(iter::once(&comm_z_claim))
         .map(|pt| pt.decompress().unwrap())
         .collect::<Vec<GroupElement>>(),
     )
@@ -502,8 +504,8 @@ mod tests {
 
     // three constraints over five variables Z1, Z2, Z3, Z4, and Z5
     // rounded to the nearest power of two
-    let num_cons = 128;
-    let num_vars = 256;
+    let num_unpadded_cons: usize = 128;
+    let num_unpadded_vars: usize = 256;
     let num_inputs = 2;
 
     // encode the above constraints into three matrices
@@ -515,19 +517,22 @@ mod tests {
     // (Z1 + Z2) * I0 - Z3 = 0;
     A.push((0, 0, one));
     A.push((0, 1, one));
-    B.push((0, num_vars + 1, one));
+    B.push((0, num_unpadded_vars + 1, one));
 
     // constraint 1 entries
     // (Z1 + I1) * (Z3) - Z4 = 0
     A.push((1, 0, one));
-    A.push((1, num_vars + 2, one));
+    A.push((1, num_unpadded_vars + 2, one));
     B.push((1, 2, one));
     // constraint 3 entries
     // Z5 * 1 - 0 = 0
     A.push((2, 4, one));
-    B.push((2, num_vars, one));
+    B.push((2, num_unpadded_vars, one));
 
-    let inst = R1CSLiteInstance::new(num_cons, num_vars, num_inputs, &A, &B);
+    let num_cons = num_unpadded_cons.next_power_of_two();
+    let num_vars = num_unpadded_vars.next_power_of_two();
+
+    let inst = R1CSLiteInstance::new(num_cons, num_vars, num_inputs, &A, &B, num_unpadded_cons, num_unpadded_vars);
 
     // compute a satisfying assignment
     let mut csprng: OsRng = OsRng;

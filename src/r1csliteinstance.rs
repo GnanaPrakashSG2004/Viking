@@ -22,6 +22,8 @@ pub struct R1CSLiteInstance {
   num_inputs: usize,
   A: SparseMatPolynomial,
   B: SparseMatPolynomial,
+  num_unpadded_cons: usize,
+  num_unpadded_vars: usize,
 }
 
 pub struct R1CSLiteCommitmentGens {
@@ -87,6 +89,8 @@ impl R1CSLiteInstance {
     num_inputs: usize,
     A: &[(usize, usize, Scalar)],
     B: &[(usize, usize, Scalar)],
+    num_unpadded_cons: usize,
+    num_unpadded_vars: usize,
   ) -> R1CSLiteInstance {
     Timer::print(&format!("number_of_constraints {num_cons}"));
     Timer::print(&format!("number_of_variables {num_vars}"));
@@ -125,6 +129,8 @@ impl R1CSLiteInstance {
       num_inputs,
       A: poly_A,
       B: poly_B,
+      num_unpadded_cons,
+      num_unpadded_vars,
     }
   }
 
@@ -202,6 +208,8 @@ impl R1CSLiteInstance {
       num_inputs,
       A: poly_A,
       B: poly_B,
+      num_unpadded_cons: num_cons,
+      num_unpadded_vars: num_vars,
     };
 
     assert!(inst.is_sat(&Z[..num_vars], &Z[num_vars + 1..]));
@@ -209,15 +217,35 @@ impl R1CSLiteInstance {
     (inst, Z[..num_vars].to_vec(), Z[num_vars + 1..].to_vec())
   }
 
+  fn pad(&self, z: Vec<Scalar>) -> Vec<Scalar> {
+    // Pad z to self.num_vars + 2 size
+    assert!(self.num_vars + 2 > z.len());
+
+    let padded_z = {
+      let mut padded_z = z.clone();
+      padded_z.extend(vec![Scalar::zero(); self.num_vars - z.len()]);
+      padded_z
+    };
+    padded_z
+  }
+
+  fn extend_one_input(&self, z: Vec<Scalar>, input: &[Scalar]) -> Vec<Scalar> {
+    let final_z = {
+      let mut final_z = z;
+      final_z.extend(&vec![Scalar::one()]);
+      final_z.extend(input);
+      final_z
+    };
+    final_z
+  }
+
   pub fn is_sat(&self, vars: &[Scalar], input: &[Scalar]) -> bool {
-    assert_eq!(vars.len(), self.num_vars);
     assert_eq!(input.len(), self.num_inputs);
 
+    let unpad_z =  self.extend_one_input(vars.to_vec(), input);
     let z = {
-      let mut z = vars.to_vec();
-      z.extend(&vec![Scalar::one()]);
-      z.extend(input);
-      z
+      let padded_z = self.pad(vars.to_vec());
+      self.extend_one_input(padded_z, input)
     };
 
     // verify if Az * Bz - z[..num_cons] == 0
@@ -228,13 +256,9 @@ impl R1CSLiteInstance {
       .B
       .multiply_vec(self.num_cons, self.num_vars + self.num_inputs + 1, &z);
 
-    println!("Az: {:?}", Az);
-    println!("Bz: {:?}", Bz);
-    println!("z: {:?}", z);
-
     assert_eq!(Az.len(), self.num_cons);
     assert_eq!(Bz.len(), self.num_cons);
-    (0..self.num_cons).all(|i| Az[i] * Bz[i] == z[i])
+    (0..vars.len()).all(|i| Az[i] * Bz[i] == unpad_z[i])
   }
 
   pub fn multiply_vec(
@@ -247,7 +271,10 @@ impl R1CSLiteInstance {
     assert_eq!(z.len(), num_cols);
     assert!(num_cols > self.num_vars);
 
-    let z_new = z.iter().cloned().collect();
+    let z_vec: Vec<Scalar> = z.iter().cloned().collect();
+
+    let mut z_new: Vec<_> = z_vec.iter().take(self.num_unpadded_cons).cloned().collect();
+    z_new.extend(z_vec.iter().skip(num_rows).take(self.num_unpadded_vars));
 
     (
       DensePolynomial::new(self.A.multiply_vec(num_rows, num_cols, z)),
@@ -311,7 +338,7 @@ impl R1CSLiteEvalProof {
       &decomm.dense,
       rx,
       ry,
-      &[evals.0, evals.1],
+      &[evals.0, evals.1, evals.2],
       &gens.gens,
       transcript,
       random_tape,

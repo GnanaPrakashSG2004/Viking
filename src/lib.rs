@@ -213,6 +213,8 @@ impl Instance {
       num_inputs,
       &A_scalar.unwrap(),
       &B_scalar.unwrap(),
+      num_cons,
+      num_vars,
     );
 
     let digest = inst.get_digest();
@@ -234,21 +236,10 @@ impl Instance {
       return Err(R1CSLiteError::InvalidNumberOfInputs);
     }
 
-    // we might need to pad variables
-    let padded_vars = {
-      let num_padded_vars = self.inst.get_num_vars();
-      let num_vars = vars.assignment.len();
-      if num_padded_vars > num_vars {
-        vars.pad(num_padded_vars)
-      } else {
-        vars.clone()
-      }
-    };
-
     Ok(
       self
         .inst
-        .is_sat(&padded_vars.assignment, &inputs.assignment),
+        .is_sat(&vars.assignment, &inputs.assignment),
     )
   }
 
@@ -428,6 +419,7 @@ impl SNARK {
 
     let timer_sat_proof = Timer::new("verify_sat_proof");
     assert_eq!(input.assignment.len(), comm.comm.get_num_inputs());
+
     let (rx, ry) = self.r1cs_lite_sat_proof.verify(
       comm.comm.get_num_vars(),
       comm.comm.get_num_cons(),

@@ -67,8 +67,8 @@ fn r1cs_lite() -> (
 
   // Constraint 6 is (d + 1) * 1 = y
   A.push((6, 4, one));
-  A.push((6, num_vars,     one));
-  B.push((6, num_vars,     one));
+  A.push((6, num_vars, one));
+  B.push((6, num_vars, one));
 
   let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B).unwrap();
 
