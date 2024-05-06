@@ -2,10 +2,13 @@
 //! The example is described in detail [here].
 //!
 //! The R1CS for this problem consists of the following 4 constraints:
-//! `Z0 * Z0 - Z1 = 0`
-//! `Z1 * Z0 - Z2 = 0`
-//! `(Z2 + Z0) * 1 - Z3 = 0`
-//! `(Z3 + 5) * 1 - I0 = 0`
+//! x * 1 = x
+//! x * x = a
+//! a * a = b
+//! b * b = c
+//! c * c = d
+//! e * e = e
+//! (d + 1) * 1 = y
 //!
 //! [here]: https://medium.com/@VitalikButerin/quadratic-arithmetic-programs-from-zero-to-hero-f6d558cea649
 #![allow(non_snake_case)]

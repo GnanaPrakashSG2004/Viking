@@ -1225,8 +1225,8 @@ impl ProductLayerProof {
 
     // subset check
     let (row_eval_init, row_eval_read, row_eval_write, row_eval_audit) = &self.eval_row;
-    assert_eq!(row_eval_write.len(), num_instances);
-    assert_eq!(row_eval_read.len(), num_instances);
+    assert_eq!(row_eval_write.len() + 1, num_instances);
+    assert_eq!(row_eval_read.len() + 1, num_instances);
     let ws: Scalar = (0..row_eval_write.len())
       .map(|i| row_eval_write[i])
       .product();
@@ -1240,8 +1240,8 @@ impl ProductLayerProof {
 
     // subset check
     let (col_eval_init, col_eval_read, col_eval_write, col_eval_audit) = &self.eval_col;
-    assert_eq!(col_eval_write.len(), num_instances);
-    assert_eq!(col_eval_read.len(), num_instances);
+    assert_eq!(col_eval_write.len() + 1, num_instances);
+    assert_eq!(col_eval_read.len() + 1, num_instances);
     let ws: Scalar = (0..col_eval_write.len())
       .map(|i| col_eval_write[i])
       .product();
@@ -1255,10 +1255,10 @@ impl ProductLayerProof {
 
     // verify the evaluation of the sparse polynomial
     let (eval_dotp_left, eval_dotp_right) = &self.eval_val;
-    assert_eq!(eval_dotp_left.len(), eval_dotp_left.len());
-    assert_eq!(eval_dotp_left.len(), num_instances);
+    assert_eq!(eval_dotp_left.len(), eval_dotp_right.len());
+    assert_eq!(eval_dotp_left.len() + 1, num_instances);
     let mut claims_dotp_circuit: Vec<Scalar> = Vec::new();
-    for i in 0..num_instances {
+    for i in 0..num_instances - 1 {
       assert_eq!(eval_dotp_left[i] + eval_dotp_right[i], eval[i]);
       eval_dotp_left[i].append_to_transcript(b"claim_eval_dotp_left", transcript);
       eval_dotp_right[i].append_to_transcript(b"claim_eval_dotp_right", transcript);
@@ -1371,12 +1371,12 @@ impl PolyEvalNetworkProof {
       .proof_prod_layer
       .verify(num_ops, num_cells, evals, transcript)?;
     assert_eq!(claims_mem.len(), 4);
-    assert_eq!(claims_ops.len(), 4 * num_instances);
-    assert_eq!(claims_dotp.len(), 3 * num_instances);
+    assert_eq!(claims_ops.len(), 4 * (num_instances - 1));
+    assert_eq!(claims_dotp.len(), 3 * (num_instances - 1));
 
-    let (claims_ops_row, claims_ops_col) = claims_ops.split_at_mut(2 * num_instances);
-    let (claims_ops_row_read, claims_ops_row_write) = claims_ops_row.split_at_mut(num_instances);
-    let (claims_ops_col_read, claims_ops_col_write) = claims_ops_col.split_at_mut(num_instances);
+    let (claims_ops_row, claims_ops_col) = claims_ops.split_at_mut(2 * (num_instances - 1));
+    let (claims_ops_row_read, claims_ops_row_write) = claims_ops_row.split_at_mut(num_instances - 1);
+    let (claims_ops_col_read, claims_ops_col_write) = claims_ops_col.split_at_mut(num_instances - 1);
 
     // verify the proof of hash layer
     self.proof_hash_layer.verify(

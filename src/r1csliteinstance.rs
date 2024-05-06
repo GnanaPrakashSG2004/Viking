@@ -146,6 +146,14 @@ impl R1CSLiteInstance {
     self.num_inputs
   }
 
+  pub fn get_num_unpadded_cons(&self) -> usize {
+    self.num_unpadded_cons
+  }
+
+  pub fn get_num_unpadded_vars(&self) -> usize {
+    self.num_unpadded_vars
+  }
+
   pub fn get_digest(&self) -> Vec<u8> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     bincode::serialize_into(&mut encoder, &self).unwrap();
@@ -273,8 +281,9 @@ impl R1CSLiteInstance {
 
     let z_vec: Vec<Scalar> = z.iter().cloned().collect();
 
-    let mut z_new: Vec<_> = z_vec.iter().take(self.num_unpadded_cons).cloned().collect();
-    z_new.extend(z_vec.iter().skip(num_rows).take(self.num_unpadded_vars));
+    let mut z_new: Vec<_> = z_vec.iter().take(self.num_unpadded_vars).cloned().collect();
+    z_new.extend(z_vec.iter().skip(num_rows).take(self.num_unpadded_cons - self.num_unpadded_vars));
+    z_new.extend(vec![Scalar::zero(); num_rows - z_new.len()]);
 
     (
       DensePolynomial::new(self.A.multiply_vec(num_rows, num_cols, z)),
