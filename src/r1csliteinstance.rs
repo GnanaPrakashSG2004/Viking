@@ -197,9 +197,21 @@ impl R1CSLiteInstance {
     let one = Scalar::one();
     for i in 0..num_cons {
       let A_idx = i % size_z;
-      let B_idx = (i + 2) % size_z;
       A.push(SparseMatEntry::new(i, A_idx, one));
-      B.push(SparseMatEntry::new(i, B_idx, one));
+      
+      let B_idx = (i + 2) % size_z;
+      let z_idx = (i) % size_z;
+
+      let A_val = Z[A_idx];
+      let B_val = Z[B_idx];
+      let z_val = Z[z_idx];
+
+
+      if A_val * B_val == Scalar::zero() {
+        B.push(SparseMatEntry::new(i, B_idx, one));
+      } else {
+        B.push(SparseMatEntry::new(i, B_idx, z_val * (A_val * B_val).invert().unwrap()));
+      }
     }
 
     Timer::print(&format!("number_non-zero_entries_A {}", A.len()));
