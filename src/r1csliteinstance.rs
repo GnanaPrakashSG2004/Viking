@@ -308,7 +308,18 @@ impl R1CSLiteInstance {
   }
 
   pub fn evaluate(&self, rx: &[Scalar], ry: &[Scalar]) -> (Scalar, Scalar, Scalar) {
-    let evals = SparseMatPolynomial::multi_evaluate(&[&self.A, &self.B], rx, ry);
+    let mut C: Vec<SparseMatEntry> = Vec::new();
+    (0..self.num_unpadded_vars).for_each(|i| {
+      C.push(SparseMatEntry::new(i, i, Scalar::one()));
+    });
+    let gap = self.num_vars - self.num_unpadded_vars;
+    (self.num_unpadded_vars..self.num_unpadded_cons).for_each(|i| {
+      C.push(SparseMatEntry::new(i, i + gap, Scalar::one()));
+    });
+
+    let sparse_C = SparseMatPolynomial::new(self.num_cons.log_2(), (2 * self.num_vars).log_2(), C);
+
+    let evals = SparseMatPolynomial::multi_evaluate(&[&self.A, &self.B, &sparse_C], rx, ry);
     (evals[0], evals[1], evals[2])
   }
 

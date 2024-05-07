@@ -122,7 +122,6 @@ impl EqualityProof {
     C1: &CompressedGroup,
     C2: &CompressedGroup,
   ) -> Result<(), ProofVerifyError> {
-    print!("Equality proof");
 
     transcript.append_protocol_name(EqualityProof::protocol_name());
     C1.append_to_transcript(b"C1", transcript);

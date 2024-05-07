@@ -1,3 +1,4 @@
+
 #![allow(clippy::too_many_arguments)]
 use super::commitments::{Commitments, MultiCommitGens};
 use super::dense_mlpoly::{
@@ -273,21 +274,21 @@ impl R1CSLiteProof {
       let (evals_A, evals_B) =
         inst.compute_eval_table_sparse(inst.get_num_cons(), z.len(), &evals_rx);
 
-    let mut evals_C = vec![Scalar::zero(); z.len()];
-    (0..inst.get_num_unpadded_vars())
-      .for_each(|i| evals_C[i] = evals_rx[i] * Scalar::one());
-    let gap = inst.get_num_vars() - inst.get_num_unpadded_vars();
-    (inst.get_num_unpadded_vars()..inst.get_num_unpadded_cons())
-      .for_each(|i| evals_C[i + gap] = evals_rx[i] * Scalar::one());
+      let mut evals_C = vec![Scalar::zero(); z.len()];
+      (0..inst.get_num_unpadded_vars())
+        .for_each(|i| evals_C[i] += evals_rx[i] * Scalar::one());
+      let gap = inst.get_num_vars() - inst.get_num_unpadded_vars();
+      (inst.get_num_unpadded_vars()..inst.get_num_unpadded_cons())
+        .for_each(|i| evals_C[i + gap] += evals_rx[i] * Scalar::one());
 
-    assert_eq!(evals_A.len(), evals_B.len());
-    assert_eq!(evals_A.len(), evals_C.len());
+      assert_eq!(evals_A.len(), evals_B.len());
+      assert_eq!(evals_A.len(), evals_C.len());
 
-    (0..evals_A.len())
-    .map(|i| {
-      r_A * evals_A[i] + r_B * evals_B[i] + r_z * evals_C[i]
-      })
-      .collect::<Vec<Scalar>>()
+      (0..evals_A.len())
+      .map(|i| {
+        r_A * evals_A[i] + r_B * evals_B[i] + r_z * evals_C[i]
+        })
+        .collect::<Vec<Scalar>>()
     };
 
     // another instance of the sum-check protocol
@@ -424,8 +425,6 @@ impl R1CSLiteProof {
       &expected_claim_post_phase1,
       &comm_claim_post_phase1,
     )?;
-
-    println!("Here");
 
     // derive three public challenges and then derive a joint claim
     let r_A = transcript.challenge_scalar(b"challenege_Az");
