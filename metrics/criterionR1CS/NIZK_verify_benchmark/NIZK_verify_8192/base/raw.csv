@@ -1,0 +1,11 @@
+group,function,value,throughput_num,throughput_type,sample_measured_value,unit,iteration_count
+NIZK_verify_benchmark,NIZK_verify_8192,,,,102100125.0,ns,8
+NIZK_verify_benchmark,NIZK_verify_8192,,,,204387667.0,ns,16
+NIZK_verify_benchmark,NIZK_verify_8192,,,,309884709.0,ns,24
+NIZK_verify_benchmark,NIZK_verify_8192,,,,409493667.0,ns,32
+NIZK_verify_benchmark,NIZK_verify_8192,,,,513460000.0,ns,40
+NIZK_verify_benchmark,NIZK_verify_8192,,,,611057000.0,ns,48
+NIZK_verify_benchmark,NIZK_verify_8192,,,,716146291.0,ns,56
+NIZK_verify_benchmark,NIZK_verify_8192,,,,825620708.0,ns,64
+NIZK_verify_benchmark,NIZK_verify_8192,,,,924988125.0,ns,72
+NIZK_verify_benchmark,NIZK_verify_8192,,,,1022873584.0,ns,80

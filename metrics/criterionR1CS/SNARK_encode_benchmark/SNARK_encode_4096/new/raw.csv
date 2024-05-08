@@ -1,0 +1,11 @@
+group,function,value,throughput_num,throughput_type,sample_measured_value,unit,iteration_count
+SNARK_encode_benchmark,SNARK_encode_4096,,,,172449541.0,ns,1
+SNARK_encode_benchmark,SNARK_encode_4096,,,,348259625.0,ns,2
+SNARK_encode_benchmark,SNARK_encode_4096,,,,519888333.0,ns,3
+SNARK_encode_benchmark,SNARK_encode_4096,,,,703458750.0,ns,4
+SNARK_encode_benchmark,SNARK_encode_4096,,,,865335291.0,ns,5
+SNARK_encode_benchmark,SNARK_encode_4096,,,,1038798583.0,ns,6
+SNARK_encode_benchmark,SNARK_encode_4096,,,,1211578500.0,ns,7
+SNARK_encode_benchmark,SNARK_encode_4096,,,,1386104083.0,ns,8
+SNARK_encode_benchmark,SNARK_encode_4096,,,,1561922250.0,ns,9
+SNARK_encode_benchmark,SNARK_encode_4096,,,,1734074250.0,ns,10

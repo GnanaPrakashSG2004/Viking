@@ -1,3 +1,9 @@
+# Viking: A non-malleable zkSNARK without trusted setup using the R1CSLite constraint system
+
+Viking is a fork of Spartan with the R1CSLite constraint system instead of R1CS. The `master` branch contains code for the R1CS implementation and the `gp` branch contains the R1CSLite implementation. The R1CSLite implementation, introduced in [Lunar](https://eprint.iacr.org/2020/1069) is a more efficient representation of NP languages for $N > l_{in} + 1$ where $N$ is the number of multiplication gates and $l_{in}$ is the number of input variables.
+
+---
+
 # Spartan: High-speed zkSNARKs without trusted setup
 
 ![Rust](https://github.com/microsoft/Spartan/workflows/Rust/badge.svg)

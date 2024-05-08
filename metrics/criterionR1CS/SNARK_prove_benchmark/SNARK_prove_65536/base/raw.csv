@@ -1,0 +1,11 @@
+group,function,value,throughput_num,throughput_type,sample_measured_value,unit,iteration_count
+SNARK_prove_benchmark,SNARK_prove_65536,,,,3405091709.0,ns,1
+SNARK_prove_benchmark,SNARK_prove_65536,,,,3370973750.0,ns,1
+SNARK_prove_benchmark,SNARK_prove_65536,,,,3378379666.0,ns,1
+SNARK_prove_benchmark,SNARK_prove_65536,,,,3415127417.0,ns,1
+SNARK_prove_benchmark,SNARK_prove_65536,,,,3459800250.0,ns,1
+SNARK_prove_benchmark,SNARK_prove_65536,,,,3425534000.0,ns,1
+SNARK_prove_benchmark,SNARK_prove_65536,,,,3441975917.0,ns,1
+SNARK_prove_benchmark,SNARK_prove_65536,,,,3394681791.0,ns,1
+SNARK_prove_benchmark,SNARK_prove_65536,,,,3458593500.0,ns,1
+SNARK_prove_benchmark,SNARK_prove_65536,,,,3398154833.0,ns,1
