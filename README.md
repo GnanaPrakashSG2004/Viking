@@ -2,18 +2,34 @@
 
 Viking is a fork of Spartan with the R1CSLite constraint system instead of R1CS. The `master` branch contains code for the R1CS implementation and the `gp` branch contains the R1CSLite implementation. The R1CSLite implementation, introduced in [Lunar](https://eprint.iacr.org/2020/1069) is a more efficient representation of NP languages for $N > l_{in} + 1$ where $N$ is the number of multiplication gates and $l_{in}$ is the number of input variables.
 
----
+Viking is a high-speed zero-knowledge proof system, a cryptographic primitive that enables a prover to prove a mathematical statement to a verifier without revealing anything besides the validity of the statement.  This repository a Rust library that implements a zero-knowledge succinct non-interactive argument of knowledge (zkSNARK), which is a type of zero-knowledge proof system with short proofs and fast verification times. For more details refer to the Report.pdf file in the root directory.
 
-# Spartan: High-speed zkSNARKs without trusted setup
+#### Please note that Viking is  prototype and is not yet ready for production use. We welcome contributions and feedback from the community.
 
-![Rust](https://github.com/microsoft/Spartan/workflows/Rust/badge.svg)
-[![](https://img.shields.io/crates/v/spartan.svg)](<(https://crates.io/crates/spartan)>)
+Improvements in Viking - 
 
-Spartan is a high-speed zero-knowledge proof system, a cryptographic primitive that enables a prover to prove a mathematical statement to a verifier without revealing anything besides the validity of the statement. This repository provides `libspartan,` a Rust library that implements a zero-knowledge succinct non-interactive argument of knowledge (zkSNARK), which is a type of zero-knowledge proof system with short proofs and fast verification times. The details of the Spartan proof system are described in our [paper](https://eprint.iacr.org/2019/550) published at [CRYPTO 2020](https://crypto.iacr.org/2020/). The security of the Spartan variant implemented in this library is based on the discrete logarithm problem in the random oracle model.
+### Performance Data Table
 
-A simple example application is proving the knowledge of a secret s such that H(s) == d for a public d, where H is a cryptographic hash function (e.g., SHA-256, Keccak). A more complex application is a database-backed cloud service that produces proofs of correct state machine transitions for auditability. See this [paper](https://eprint.iacr.org/2020/758.pdf) for an overview and this [paper](https://eprint.iacr.org/2018/907.pdf) for details.
+| Constraint Size | Spartan Proof (ms) | Viking Proof (ms) | Spartan Verify (ms) | Viking Verify (ms) |
+|------------------|---------------------|--------------------|----------------------|---------------------|
+| $2^{10}$         | 21.946              | 21.395             | 7.1222               | 7.1775              |
+| $2^{11}$         | 32.516              | 32.037             | 8.6966               | 8.2115              |
+| $2^{12}$         | 50.715              | 49.684             | 10.190               | 9.6508              |
+| $2^{13}$         | 84.063              | 83.324             | 12.813               | 12.009              |
+| $2^{14}$         | 149.970             | 149.070            | 16.113               | 15.825              |
+| $2^{15}$         | 268.650             | 266.770            | 24.390               | 23.215              |
+| $2^{16}$         | 509.460             | 506.370            | 38.181               | 36.762              |
+| $2^{17}$         | 888.150             | 889.030            | 62.904               | 62.260              |
+| $2^{18}$         | 1,750.700           | 1,744.100          | 112.900              | 113.470             |
+| $2^{19}$         | 3,140.600           | 3,115.100          | 208.780              | 209.470             |
+| $2^{20}$         | 6,243.300           | 6,305.700          | 400.220              | 408.920             |
 
-Note that this library has _not_ received a security review or audit.
+### Notes:
+- The times are measured in milliseconds (ms).
+- The constraint sizes are represented as powers of two, from 2^10 to 2^20.
+- This table provides a clear comparison between Spartan and Viking for both proof and verification times across different constraint sizes.
+
+Some of the key features of Viking that it inherits from Spartan are:
 
 ## Highlights
 
@@ -61,7 +77,7 @@ fn main() {
     let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_non_zero_entries);
 
     // ask the library to produce a synthentic R1CS instance
-    let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
+    let (inst, vars, inputs) = Instance::produce_synthetic_r1cs_lite(num_cons, num_vars, num_inputs);
 
     // create a commitment to the R1CS instance
     let (comm, decomm) = SNARK::encode(&inst, &gens);
@@ -96,7 +112,7 @@ fn main() {
     let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
     // ask the library to produce a synthentic R1CS instance
-    let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
+    let (inst, vars, inputs) = Instance::produce_synthetic_r1cs_lite(num_cons, num_vars, num_inputs);
 
     // produce a proof of satisfiability
     let mut prover_transcript = Transcript::new(b"nizk_example");
@@ -115,16 +131,124 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
 
 ```rust
 #![allow(non_snake_case)]
-extern crate curve25519_dalek;
-extern crate libspartan;
-extern crate merlin;
+//! Demonstrates how to produces a proof for canonical cubic equation: `x^3 + x + 5 = y`.
+//! The example is described in detail [here].
+//!
+//! The R1CS for this problem consists of the following 4 constraints:
+//! x * 1 = x
+//! x * x = a
+//! a * a = b
+//! b * b = c
+//! c * c = d
+//! e * e = e
+//! (d + 1) * 1 = y
+//!
+//! [here]: https://medium.com/@VitalikButerin/quadratic-arithmetic-programs-from-zero-to-hero-f6d558cea649
+#![allow(non_snake_case)]
+#![allow(clippy::assertions_on_result_states)]
 use curve25519_dalek::scalar::Scalar;
 use libspartan::{InputsAssignment, Instance, SNARKGens, VarsAssignment, SNARK};
 use merlin::Transcript;
 use rand::rngs::OsRng;
 
+fn r1cs_lite() -> (
+  usize,
+  usize,
+  usize,
+  usize,
+  Instance,
+  VarsAssignment,
+  InputsAssignment,
+) {
+  // parameters of the R1CS instance
+  let num_cons = 7;
+  let num_vars = 5;
+  let num_inputs = 1;
+  let num_non_zero_entries = 8;
+
+  // We will encode the above constraints into three matrices, where
+  // the coefficients in the matrix are in the little-endian byte order
+  let mut A: Vec<(usize, usize, [u8; 32])> = Vec::new();
+  let mut B: Vec<(usize, usize, [u8; 32])> = Vec::new();
+
+  let one = Scalar::ONE.to_bytes();
+
+  // R1CSLite instance for y = x^16 + 1
+  // Constraints are written in the order of A.B = C
+  // For now, C will be identity - Just testing out the correctness of our R1CSLite instance for y = x^16 + 1
+
+  // Constraint 0 is x * 1 = x
+  A.push((0, 0,        one));
+  B.push((0, num_vars, one));
+
+  // Constraint 1 is x * x = a
+  A.push((1, 0, one));
+  B.push((1, 0, one));
+
+  // Constraint 2 is a * a = b
+  A.push((2, 1, one));
+  B.push((2, 1, one));
+
+  // Constraint 3 is b * b = c
+  A.push((3, 2, one));
+  B.push((3, 2, one));
+
+  // Constraint 4 is c * c = d
+  A.push((4, 3, one));
+  B.push((4, 3, one));
+
+  // Constraint 5 is 1 * 1 = 1
+  A.push((5, num_vars, one));
+  B.push((5, num_vars, one));
+
+  // Constraint 6 is (d + 1) * 1 = y
+  A.push((6, 4, one));
+  A.push((6, num_vars, one));
+  B.push((6, num_vars, one));
+
+  let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B).unwrap();
+
+  // compute a satisfying assignment
+  let mut csprng: OsRng = OsRng;
+  let z0 = Scalar::random(&mut csprng);
+  let z1 = z0 * z0;          // constraint 2
+  let z2 = z1 * z1;          // constraint 3
+  let z3 = z2 * z2;          // constraint 4
+  let z4 = z3 * z3;          // constraint 5
+  let i0 = z4 + Scalar::ONE; // constraint 6
+
+  // create a VarsAssignment
+  let mut vars = vec![Scalar::ZERO.to_bytes(); num_vars];
+  vars[0] = z0.to_bytes();
+  vars[1] = z1.to_bytes();
+  vars[2] = z2.to_bytes();
+  vars[3] = z3.to_bytes();
+  vars[4] = z4.to_bytes();
+  let assignment_vars = VarsAssignment::new(&vars).unwrap();
+
+  // create an InputsAssignment
+  let mut inputs = vec![Scalar::ZERO.to_bytes(); num_inputs];
+  inputs[0] = i0.to_bytes();
+  let assignment_inputs = InputsAssignment::new(&inputs).unwrap();
+
+  // check if the instance we created is satisfiable
+  let res = inst.is_sat(&assignment_vars, &assignment_inputs);
+  assert!(res.unwrap(), "should be satisfied");
+
+  (
+    num_cons,
+    num_vars,
+    num_inputs,
+    num_non_zero_entries,
+    inst,
+    assignment_vars,
+    assignment_inputs,
+  )
+}
+
+
 fn main() {
-  // produce a tiny instance
+  // produce an R1CS instance
   let (
     num_cons,
     num_vars,
@@ -133,7 +257,7 @@ fn main() {
     inst,
     assignment_vars,
     assignment_inputs,
-  ) = produce_tiny_r1cs();
+  ) = r1cs_lite();
 
   // produce public parameters
   let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_non_zero_entries);
@@ -160,107 +284,6 @@ fn main() {
     .is_ok());
   println!("proof verification successful!");
 }
-
-fn produce_tiny_r1cs() -> (
- usize,
- usize,
- usize,
- usize,
- Instance,
- VarsAssignment,
- InputsAssignment,
-) {
-  // We will use the following example, but one could construct any R1CS instance.
-  // Our R1CS instance is three constraints over five variables and two public inputs
-  // (Z0 + Z1) * I0 - Z2 = 0
-  // (Z0 + I1) * Z2 - Z3 = 0
-  // Z4 * 1 - 0 = 0
-
-  // parameters of the R1CS instance rounded to the nearest power of two
-  let num_cons = 4;
-  let num_vars = 5;
-  let num_inputs = 2;
-  let num_non_zero_entries = 5;
-
-  // We will encode the above constraints into three matrices, where
-  // the coefficients in the matrix are in the little-endian byte order
-  let mut A: Vec<(usize, usize, [u8; 32])> = Vec::new();
-  let mut B: Vec<(usize, usize, [u8; 32])> = Vec::new();
-  let mut C: Vec<(usize, usize, [u8; 32])> = Vec::new();
-
-  // The constraint system is defined over a finite field, which in our case is
-  // the scalar field of ristreeto255/curve25519 i.e., p =  2^{252}+27742317777372353535851937790883648493
-  // To construct these matrices, we will use `curve25519-dalek` but one can use any other method.
-
-  // a variable that holds a byte representation of 1
-  let one = Scalar::ONE.to_bytes();
-
-  // R1CS is a set of three sparse matrices A B C, where is a row for every
-  // constraint and a column for every entry in z = (vars, 1, inputs)
-  // An R1CS instance is satisfiable iff:
-  // Az \circ Bz = Cz, where z = (vars, 1, inputs)
-
-  // constraint 0 entries in (A,B,C)
-  // constraint 0 is (Z0 + Z1) * I0 - Z2 = 0.
-  // We set 1 in matrix A for columns that correspond to Z0 and Z1
-  // We set 1 in matrix B for column that corresponds to I0
-  // We set 1 in matrix C for column that corresponds to Z2
-  A.push((0, 0, one));
-  A.push((0, 1, one));
-  B.push((0, num_vars + 1, one));
-  C.push((0, 2, one));
-
-  // constraint 1 entries in (A,B,C)
-  A.push((1, 0, one));
-  A.push((1, num_vars + 2, one));
-  B.push((1, 2, one));
-  C.push((1, 3, one));
-
-  // constraint 3 entries in (A,B,C)
-  A.push((2, 4, one));
-  B.push((2, num_vars, one));
-
-  let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
-
-  // compute a satisfying assignment
-  let mut csprng: OsRng = OsRng;
-  let i0 = Scalar::random(&mut csprng);
-  let i1 = Scalar::random(&mut csprng);
-  let z0 = Scalar::random(&mut csprng);
-  let z1 = Scalar::random(&mut csprng);
-  let z2 = (z0 + z1) * i0; // constraint 0
-  let z3 = (z0 + i1) * z2; // constraint 1
-  let z4 = Scalar::ZERO; //constraint 2
-
-  // create a VarsAssignment
-  let mut vars = vec![Scalar::ZERO.to_bytes(); num_vars];
-  vars[0] = z0.to_bytes();
-  vars[1] = z1.to_bytes();
-  vars[2] = z2.to_bytes();
-  vars[3] = z3.to_bytes();
-  vars[4] = z4.to_bytes();
-  let assignment_vars = VarsAssignment::new(&vars).unwrap();
-
-  // create an InputsAssignment
-  let mut inputs = vec![Scalar::ZERO.to_bytes(); num_inputs];
-  inputs[0] = i0.to_bytes();
-  inputs[1] = i1.to_bytes();
-  let assignment_inputs = InputsAssignment::new(&inputs).unwrap();
-
-  // check if the instance we created is satisfiable
-  let res = inst.is_sat(&assignment_vars, &assignment_inputs);
-  assert_eq!(res.unwrap(), true);
-
-  (
-    num_cons,
-    num_vars,
-    num_inputs,
-    num_non_zero_entries,
-    inst,
-    assignment_vars,
-    assignment_inputs,
-  )
- }
 ```
 
 For more examples, see [`examples/`](examples) directory in this repo.
@@ -345,85 +368,102 @@ performance is from running the profilers on a Microsoft Surface Laptop 3 on a s
 See Section 9 in our [paper](https://eprint.iacr.org/2019/550) to see how this compares with other zkSNARKs in the literature.
 
 ```text
-$ ./target/release/snark
-Profiler:: SNARK
-  * number_of_constraints 1048576
-  * number_of_variables 1048576
-  * number_of_inputs 10
-  * number_non-zero_entries_A 1048576
-  * number_non-zero_entries_B 1048576
-  * number_non-zero_entries_C 1048576
+  R1CS
+  * number_of_constraints 8
+  * number_of_variables 8
+  * number_of_inputs 1
+  * number_non-zero_entries_A 6
+  * number_non-zero_entries_B 5
+  * number_non-zero_entries_C 5
   * SNARK::encode
-  * SNARK::encode 14.2644201s
+  * SNARK::encode 11.254375ms
   * SNARK::prove
     * R1CSProof::prove
       * polycommit
-      * polycommit 2.7175848s
+      * polycommit 1.68075ms
       * prove_sc_phase_one
-      * prove_sc_phase_one 683.7481ms
+      * prove_sc_phase_one 15.259ms
       * prove_sc_phase_two
-      * prove_sc_phase_two 846.1056ms
+      * prove_sc_phase_two 16.849708ms
       * polyeval
-      * polyeval 193.4216ms
-    * R1CSProof::prove 4.4416193s
-    * len_r1cs_sat_proof 47024
+      * polyeval 5.274458ms
+    * R1CSProof::prove 44.402583ms
+    * len_r1cs_sat_proof 3200
     * eval_sparse_polys
-    * eval_sparse_polys 377.357ms
+    * eval_sparse_polys 53.791µs
     * R1CSEvalProof::prove
       * commit_nondet_witness
-      * commit_nondet_witness 14.4507331s
+      * commit_nondet_witness 6.221959ms
       * build_layered_network
-      * build_layered_network 3.4360521s
+      * build_layered_network 248.208µs
       * evalproof_layered_network
-        * len_product_layer_proof 64712
-      * evalproof_layered_network 15.5708066s
-    * R1CSEvalProof::prove 34.2930559s
-    * len_r1cs_eval_proof 133720
-  * SNARK::prove 39.1297568s
-  * SNARK::proof_compressed_len 141768
+        * len_product_layer_proof 5824
+      * evalproof_layered_network 33.430292ms
+    * R1CSEvalProof::prove 40.056708ms
+    * len_r1cs_eval_proof 7952
+  * SNARK::prove 85.051708ms
   * SNARK::verify
     * verify_sat_proof
-    * verify_sat_proof 20.0828ms
+    * verify_sat_proof 23.51325ms
     * verify_eval_proof
       * verify_polyeval_proof
         * verify_prod_proof
-        * verify_prod_proof 1.1847ms
+        * verify_prod_proof 2.915125ms
         * verify_hash_proof
-        * verify_hash_proof 81.06ms
-      * verify_polyeval_proof 82.3583ms
-    * verify_eval_proof 82.8937ms
-  * SNARK::verify 103.0536ms
+        * verify_hash_proof 14.444042ms
+      * verify_polyeval_proof 17.42725ms
+    * verify_eval_proof 17.570584ms
+  * SNARK::verify 41.252333ms
+proof verification successful!
 ```
 
 ```text
-$ ./target/release/nizk
-Profiler:: NIZK
-  * number_of_constraints 1048576
-  * number_of_variables 1048576
-  * number_of_inputs 10
-  * number_non-zero_entries_A 1048576
-  * number_non-zero_entries_B 1048576
-  * number_non-zero_entries_C 1048576
-  * NIZK::prove
-    * R1CSProof::prove
+  R1CSLite
+  * number_of_constraints 8
+  * number_of_variables 8
+  * number_of_inputs 1
+  * number_non-zero_entries_A 8
+  * number_non-zero_entries_B 7
+  * SNARK::encode
+  * SNARK::encode 11.490167ms
+  * SNARK::prove
+    * R1CSLiteProof::prove
       * polycommit
-      * polycommit 2.7220635s
+      * polycommit 1.6835ms
       * prove_sc_phase_one
-      * prove_sc_phase_one 722.5487ms
+      * prove_sc_phase_one 15.4015ms
       * prove_sc_phase_two
-      * prove_sc_phase_two 862.6796ms
+      * prove_sc_phase_two 16.733292ms
       * polyeval
-      * polyeval 190.2233ms
-    * R1CSProof::prove 4.4982305s
-    * len_r1cs_sat_proof 47024
-  * NIZK::prove 4.5139888s
-  * NIZK::proof_compressed_len 48134
-  * NIZK::verify
+      * polyeval 5.325042ms
+    * R1CSLiteProof::prove 44.5465ms
+    * len_r1cs_lite_sat_proof 3200
     * eval_sparse_polys
-    * eval_sparse_polys 395.0847ms
+    * eval_sparse_polys 59µs
+    * R1CSLiteEvalProof::prove
+      * commit_nondet_witness
+      * commit_nondet_witness 3.615209ms
+      * build_layered_network
+      * build_layered_network 242.958µs
+      * evalproof_layered_network
+        * len_product_layer_proof 4672
+      * evalproof_layered_network 32.323041ms
+    * R1CSLiteEvalProof::prove 36.304459ms
+    * len_r1cs_lite_eval_proof 6448
+  * SNARK::prove 81.435791ms
+  * SNARK::verify
     * verify_sat_proof
-    * verify_sat_proof 19.286ms
-  * NIZK::verify 414.5102ms
+    * verify_sat_proof 23.705916ms
+    * verify_eval_proof
+      * verify_polyeval_proof
+        * verify_prod_proof
+        * verify_prod_proof 2.242209ms
+        * verify_hash_proof
+        * verify_hash_proof 13.755625ms
+      * verify_polyeval_proof 16.07675ms
+    * verify_eval_proof 16.2215ms
+  * SNARK::verify 40.08625ms
+proof verification successful!
 ```
 
 ## LICENSE
