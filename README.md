@@ -6,6 +6,8 @@ Viking is a high-speed zero-knowledge proof system, a cryptographic primitive th
 
 #### Please note that Viking is  prototype and is not yet ready for production use. We welcome contributions and feedback from the community.
 
+Kindly refer to [Viking_Report.pdf](ishwarbb/Viking/Viking_Report.pdf) for a detailed report on the project with both theoretical and technical details.
+
 Improvements in Viking - 
 
 ### Performance Data Table
